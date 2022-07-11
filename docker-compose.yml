@@ -1,0 +1,98 @@
+version: '3.9'
+services:
+  nginx:
+    image: nginx:stable-alpine
+    #build:
+    #  context: ./nginx
+    #  dockerfile: Dockerfile
+    #restart: unless-stopped
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx/conf:/etc/nginx/conf.d/
+      - ./nginx/sites:/etc/nginx/sites-available/
+      - ./nginx/ssl:/etc/nginx/ssl
+      - ${PROJECT_DIR}:/var/www
+      #- ./nginx/logs:/mnt/logs
+      #- php-file:/var/www/html
+    networks:
+      - swarmnet
+  php-fpm:
+    image: 037124765686.dkr.ecr.ap-southeast-3.amazonaws.com/php72:latest
+    #build:
+    #  context: ./php/7.2
+    #  dockerfile: Dockerfile
+    #restart: unless-stopped
+    #tty: true
+    working_dir: /var/www
+    ports:
+        - 9000:9000
+        - 6001:6001
+    volumes:
+      #- type: volume
+      #  source: ${PROJECT_DIR}
+      #  target: /var/www
+      - ${PROJECT_DIR}:/var/www
+      #- ./php-fpm/php${PHP_VERSION}.ini:/usr/local/etc/php/php.ini
+    networks:
+      - swarmnet
+
+  postgres:
+    image: postgres:14.2
+    #restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init-database.sh:/docker-entrypoint-initdb.d/init-database.sh
+    networks:
+      - swarmnet
+
+  redis:
+    image: redis:alpine
+    networks:
+      - swarmnet
+
+  cadvisor:
+    image: google/cadvisor
+    ports:
+      - 10000:8080
+    volumes:
+      - /:/rootfs:ro
+      #- /var/run:/var/run:rw
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - swarmnet
+    deploy:
+      mode: global
+
+  portainer:
+    image: portainer/portainer
+    ports:
+      - 10001:9000
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+networks:
+  swarmnet:
+volumes:
+  portainer-data:
+  postgres-data:
+#  php-file:
+#    driver_opts:
+#      type: none
+#      device: ${PROJECT_DIR}
+#      #device: ${PWD}/www
+#      o: bind
